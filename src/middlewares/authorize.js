@@ -8,7 +8,7 @@ export function authorize(roles = []) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    let permissions = user.permissions ?? user.role ?? [];
+    let permissions = user.permissions ?? [];
     if (!Array.isArray(permissions)) permissions = [permissions];
 
     if (roles.length === 0) return next();

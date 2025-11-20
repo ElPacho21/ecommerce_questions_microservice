@@ -10,9 +10,7 @@ export async function getAllQuestions() {
 }
 
 export async function getQuestionsByUser({ userId, user }) {
-  const isAdmin = Array.isArray(user?.permissions)
-    ? user.permissions.includes("admin")
-    : user?.role === "admin";
+  const isAdmin = Array.isArray(user.permissions) && user.permissions.includes("admin");
 
   if (!isAdmin && user?.id?.toString() !== userId?.toString()) {
     const err = new Error("You are not authorized to see other user's questions");
@@ -105,9 +103,7 @@ export async function deleteQuestion(id, user) {
   }
 
   const isAuthor = question.userId.toString() === user.id.toString();
-  const hasAdminPermission = Array.isArray(user.permissions)
-    ? user.permissions.includes("admin")
-    : user.role === "admin";
+  const hasAdminPermission = Array.isArray(user.permissions) && user.permissions.includes("admin");
 
   if (!isAuthor && !hasAdminPermission) {
     const err = new Error("You are not authorized to delete this question");
@@ -119,6 +115,26 @@ export async function deleteQuestion(id, user) {
   await question.save();
 
   return question;
+}
+
+export async function updateQuestion(id, question, user) {
+  const questionExisting = await questionDao.findById(id);
+
+  if (!questionExisting) {
+    const err = new Error("Question not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (questionExisting.userId.toString() !== user.id.toString()) {
+    const err = new Error("You are not authorized to update this question");
+    err.statusCode = 403;
+    throw err;
+  }
+  
+  const updatedQuestion = await questionDao.updateById(id, { question });
+
+  return updatedQuestion;
 }
 
 export async function answerQuestion({ id, answer, userId }) {

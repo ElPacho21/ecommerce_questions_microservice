@@ -101,6 +101,9 @@ Base path: `/questions`
 - POST `/questions` (user)
   - Crea una nueva pregunta para un artículo. Publica evento `question_created`.
   - Body: `{ "articleId": "ART-123", "question": "¿Tiene garantía?" }`
+- PATCH `/questions/{id}` (user)
+  - Actualiza el texto de una pregunta. Solo el autor puede editarla.
+  - Body: `{ "question": "¿Tiene garantía extendida?" }`
 - PATCH `/questions/{id}/answer` (admin)
   - Responde una pregunta. Publica evento `question_answered`.
   - Body: `{ "answer": "Sí, 12 meses." }`

@@ -1,6 +1,4 @@
 import express from "express";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
 import morgan from "morgan";
 import cors from "cors";
 
@@ -11,9 +9,7 @@ import { consumeTokenInvalidation } from "./consumers/auth.consumer.js";
 import { consumeArticleDeleted } from "./consumers/catalog.consumer.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { swaggerUi, swaggerSpec } from "./config/swagger.config.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { connectRabbit } from "./utils/rabbit.util.js";
 
 const app = express();
 
@@ -29,7 +25,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(__dirname + '/public'));
 
 // Base de Datos
 mongoConnect();
@@ -44,7 +39,7 @@ router(app);
 app.use(errorHandler);
 
 
-// Suscriptores de RabbitMQ
+// Consumers de RabbitMQ
 consumeTokenInvalidation();
 consumeArticleDeleted();
 

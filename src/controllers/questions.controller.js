@@ -402,6 +402,81 @@ router.patch("/:id/answer", authorize(["admin"]), async (req, res, next) => {
   }
 });
 
+// Actualizar una pregunta
+/**
+ * @swagger
+ * /questions/{id}:
+ *   patch:
+ *     summary: Actualizar el texto de una pregunta (solo el autor)
+ *     description: Permite al usuario que creó la pregunta modificar su texto. Los administradores no pueden editar preguntas de otros usuarios.
+ *     tags: [Questions]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la pregunta a actualizar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               question:
+ *                 type: string
+ *                 example: "¿Este producto tiene garantía extendida?"
+ *             required:
+ *               - question
+ *     responses:
+ *       200:
+ *         description: Pregunta actualizada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Question'
+ *       400:
+ *         description: El campo question no puede estar vacío
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         description: Solo el autor de la pregunta puede editarla
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Pregunta no encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.patch("/:id", authorize(["user"]), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { question } = req.body;
+    const user = req.user;
+
+    if (!question) return res.status(400).json({ error: "The question cannot be empty." });
+    
+    const updatedQuestion = await questionService.updateQuestion(id, question, user);
+
+    if (!updatedQuestion) return res.status(404).json({ error: "Question not found" });
+    
+    res.status(200).json(updatedQuestion);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Eliminar una respuesta
 /**
  * @swagger

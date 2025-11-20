@@ -26,8 +26,8 @@ export class QuestionDao {
         try {
             return await Question.aggregate(pipeline);
         } catch(error){
-            console.error('Error al agregar preguntas:', error.message)
-            throw new Error('Error al agregar preguntas:', error.message)
+            console.error('Error al organizar preguntas:', error.message)
+            throw new Error('Error al organizar preguntas:', error.message)
         }
     }
 
@@ -60,7 +60,7 @@ export class QuestionDao {
 
     async insertOne(question){
         try {
-            const {articleId, questionText, userId} = question;
+            const {articleId, questionText, userId, createdAt} = question;
 
             if (!articleId || !questionText || !userId) {
                 throw new Error('Faltan campos de la pregunta por rellenar');
@@ -70,7 +70,7 @@ export class QuestionDao {
                 articleId,
                 question: questionText,
                 userId,
-                createdAt: new Date()
+                createdAt
             });
 
             return await newQuestion.save();
