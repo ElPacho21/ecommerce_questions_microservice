@@ -118,18 +118,163 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
 
 ## Casos de uso principales
 
-1. Un usuario autenticado pregunta sobre un artículo existente y habilitado.
-   - Se valida el artículo con Catalog; si no existe o está deshabilitado, devuelve 404.
-   - Se almacena la pregunta en MongoDB y se publica `question_created` a `stats`.
+### CU-01: Crear una pregunta sobre un artículo
 
-2. Un administrador responde una pregunta pendiente.
-   - Se actualiza la pregunta con `answer`, `answeredBy`, `answeredAt` y se publica `question_answered` a `stats`.
+**Actor:** Usuario autenticado
 
-3. Un administrador quita una respuesta errónea o desactualizada.
-   - Se pone `answer`, `answeredBy`, `answeredAt` a `null`.
+**Flujo principal:**
+1. POST a `/questions` con `{ "articleId": "ART-123", "question": "¿Tiene garantía?" }` y token Bearer.
+2. Validación de token contra Auth (cache Redis 5 min).
+3. Verificación de existencia y estado del artículo en Catalog: `GET /articles/{articleId}`.
+4. Creación del documento en MongoDB: `{ articleId, question, userId, createdAt, enabled: true }`.
+5. Publicación de evento a RabbitMQ exchange `stats`: `{ eventType: "question_created", articleId, userId, timestamp }`.
+6. Retorna pregunta creada (201).
 
-4. Un usuario o administrador deshabilita una pregunta.
-   - Soft delete: no se elimina físicamente.
+**Excepciones:**
+- Falta `articleId` o `question`: 400
+- Token inválido: 401
+- Artículo no existe o deshabilitado: 404
+
+---
+
+### CU-02: Consultar preguntas de un artículo
+
+**Actor:** Usuario autenticado
+
+**Flujo principal:**
+1. GET a `/questions/article/{articleId}` con token.
+2. Verificación de artículo en Catalog: `GET /articles/{articleId}`.
+3. Query MongoDB: `find({ articleId, enabled: true })`.
+4. Retorna array de preguntas (200).
+
+**Excepciones:**
+- Artículo no existe o deshabilitado: 404
+
+---
+
+### CU-03: Actualizar el texto de una pregunta propia
+
+**Actor:** Usuario autenticado (autor)
+
+**Flujo principal:**
+1. PATCH a `/questions/{id}` con `{ "question": "Texto actualizado" }` y token.
+2. Búsqueda en MongoDB: `findOne({ _id: id, enabled: true })`.
+3. Validación: `question.userId == user.id`.
+4. Actualización: `findByIdAndUpdate(id, { question }, { new: true })`.
+5. Retorna pregunta actualizada (200).
+
+**Excepciones:**
+- Campo vacío: 400
+- Pregunta no existe: 404
+- Usuario no es autor: 403
+
+---
+
+### CU-04: Responder una pregunta
+
+**Actor:** Administrador
+
+**Flujo principal:**
+1. PATCH a `/questions/{id}/answer` con `{ "answer": "Texto respuesta" }` y token admin.
+2. Búsqueda en MongoDB: `findOne({ _id: id, enabled: true })`.
+3. Actualización: `findByIdAndUpdate(id, { answer, answeredBy, answeredAt }, { new: true })`.
+4. Publicación a exchange `stats`: `{ eventType: "question_answered", articleId, userId, timestamp }`.
+5. Retorna pregunta con respuesta (200).
+
+**Excepciones:**
+- Campo vacío: 400
+- No es admin: 403
+- Pregunta no existe: 404
+
+---
+
+### CU-05: Eliminar una respuesta
+
+**Actor:** Administrador (autor de la respuesta)
+
+**Flujo principal:**
+1. DELETE a `/questions/{id}/answer` con token admin.
+2. Búsqueda y validación: `question.answeredBy == userId`.
+3. Actualización: `findByIdAndUpdate(id, { answer: null, answeredBy: null, answeredAt: null }, { new: true })`.
+4. Retorna pregunta sin respuesta (200).
+
+**Excepciones:**
+- Pregunta no existe: 404
+- Admin no es autor de la respuesta: 403
+
+---
+
+### CU-06: Deshabilitar una pregunta
+
+**Actor:** Usuario (autor) o Administrador
+
+**Flujo principal:**
+1. DELETE a `/questions/{id}` con token.
+2. Búsqueda en MongoDB: `findOne({ _id: id, enabled: true })`.
+3. Validación: `userId == question.userId OR user.permissions.includes("admin")`.
+4. Soft delete: `question.enabled = false; question.save()`.
+5. Retorna pregunta deshabilitada (200).
+
+**Excepciones:**
+- Pregunta no existe: 404
+- Usuario no autorizado: 403
+
+---
+
+### CU-07: Obtener preguntas de un usuario
+
+**Actor:** Usuario (propias) o Administrador (cualquiera)
+
+**Flujo principal:**
+1. GET a `/questions/user/{userId}` con token.
+2. Validación: si no es admin, `userId == user.id`.
+3. Query MongoDB: `find({ userId, enabled: true })`.
+4. Retorna array de preguntas (200).
+
+**Excepciones:**
+- Usuario intenta ver preguntas de otro: 403
+
+---
+
+### CU-08: Obtener estadísticas globales
+
+**Actor:** Cliente autenticado
+
+**Flujo principal:**
+1. GET a `/questions/stats` con token.
+2. Ejecución de agregaciones MongoDB:
+   - `countDocuments({})` → totalQuestions
+   - `countDocuments({ enabled: true })` → activeQuestions
+   - `countDocuments({ answer: { $ne: null } })` → totalAnswers
+   - Pipeline: `$group` por articleId, `$sort`, `$limit: 1` → mostAskedArticleId
+   - Pipeline: `$group` por articleId → byArticle
+3. Retorna objeto con estadísticas (200).
+
+---
+
+### CU-09: Invalidación de caché por evento Auth
+
+**Actor:** Sistema (RabbitMQ consumer)
+
+**Flujo principal:**
+1. Recepción de evento desde exchange `auth`: `{ message: "Bearer <token>" }`.
+2. Extracción del token y eliminación de Redis: `DEL auth:<token>`.
+3. Log de confirmación.
+
+**Resultado:** Token eliminado del caché, próximas peticiones revalidan contra Auth.
+
+---
+
+### CU-10: Deshabilitación de preguntas por eliminación de artículo
+
+**Actor:** Sistema (RabbitMQ consumer)
+
+**Flujo principal:**
+1. Recepción de evento desde exchange `article_deleted`: `{ articleId: "ART-123" }`.
+2. Actualización masiva: `updateMany({ articleId }, { $set: { enabled: false } })`.
+3. Log de confirmación.
+
+**Resultado:** Todas las preguntas del artículo quedan deshabilitadas (soft delete).
 
 ---
 
