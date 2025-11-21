@@ -126,9 +126,9 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
 
 ## Casos de uso principales
 
-### CU-01: Crear una pregunta sobre un artículo
+### CU-01: Crear una pregunta
 
-**Actor:** Usuario autenticado
+**Actor:** Usuario
 
 **Flujo principal:**
 1. POST a `/questions` con `{ "articleId": "ART-123", "question": "¿Tiene garantía?" }` y token Bearer.
@@ -147,7 +147,7 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
 
 ### CU-02: Consultar preguntas de un artículo
 
-**Actor:** Usuario autenticado
+**Actor:** Usuario
 
 **Flujo principal:**
 1. GET a `/questions/article/{articleId}` con token.
@@ -160,9 +160,9 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
 
 ---
 
-### CU-03: Actualizar el texto de una pregunta propia
+### CU-03: Modificar una pregunta
 
-**Actor:** Usuario autenticado (autor)
+**Actor:** Usuario
 
 **Flujo principal:**
 1. PATCH a `/questions/{id}` con `{ "question": "Texto actualizado" }` y token.
@@ -196,9 +196,9 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
 
 ---
 
-### CU-05: Eliminar una respuesta
+### CU-05: Eliminar una respuesta (borrado físico)
 
-**Actor:** Administrador (autor de la respuesta)
+**Actor:** Administrador
 
 **Flujo principal:**
 1. DELETE a `/questions/{id}/answer` con token admin.
@@ -212,9 +212,9 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
 
 ---
 
-### CU-06: Deshabilitar una pregunta
+### CU-06: Eliminar una pregunta (borrado lógico)
 
-**Actor:** Usuario (autor) o Administrador
+**Actor:** Usuario
 
 **Flujo principal:**
 1. DELETE a `/questions/{id}` con token.
@@ -229,24 +229,9 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
 
 ---
 
-### CU-07: Obtener preguntas de un usuario
+### CU-07: Obtener estadísticas globales
 
-**Actor:** Usuario (propias) o Administrador (cualquiera)
-
-**Flujo principal:**
-1. GET a `/questions/user/{userId}` con token.
-2. Validación: si no es admin, `userId == user.id`.
-3. Query MongoDB: `find({ userId, enabled: true })`.
-4. Retorna array de preguntas (200).
-
-**Excepciones:**
-- Usuario intenta ver preguntas de otro: 403
-
----
-
-### CU-08: Obtener estadísticas globales
-
-**Actor:** Cliente autenticado
+**Actor:** Usuario
 
 **Flujo principal:**
 1. GET a `/questions/stats` con token.
@@ -257,32 +242,6 @@ Para detalles completos y ejemplos de respuesta, consultar Swagger en `/api-docs
    - Pipeline: `$group` por articleId, `$sort`, `$limit: 1` → mostAskedArticleId
    - Pipeline: `$group` por articleId → byArticle
 3. Retorna objeto con estadísticas (200).
-
----
-
-### CU-09: Invalidación de caché por evento Auth
-
-**Actor:** Sistema (RabbitMQ consumer)
-
-**Flujo principal:**
-1. Recepción de evento desde exchange `auth`: `{ message: "Bearer <token>" }`.
-2. Extracción del token y eliminación de Redis: `DEL auth:<token>`.
-3. Log de confirmación.
-
-**Resultado:** Token eliminado del caché, próximas peticiones revalidan contra Auth.
-
----
-
-### CU-10: Deshabilitación de preguntas por eliminación de artículo
-
-**Actor:** Sistema (RabbitMQ consumer)
-
-**Flujo principal:**
-1. Recepción de evento desde exchange `article_deleted`: `{ articleId: "ART-123" }`.
-2. Actualización masiva: `updateMany({ articleId }, { $set: { enabled: false } })`.
-3. Log de confirmación.
-
-**Resultado:** Todas las preguntas del artículo quedan deshabilitadas (soft delete).
 
 ---
 
