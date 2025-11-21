@@ -10,6 +10,14 @@ Exposición de API REST con Express + MongoDB (Mongoose), caché de autenticaci�
 
 ---
 
+## Repositorios relacionados
+
+- **Catalog Microservice (Go):** [https://github.com/ElPacho21/catalog_modified](https://github.com/ElPacho21/catalog_modified)
+  
+- **Cliente React:** [https://github.com/ElPacho21/client_react_modified](https://github.com/ElPacho21/client_react_modified)
+
+---
+
 ## Requisitos
 
 - Node.js 18+ (ESM)
